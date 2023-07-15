@@ -1,0 +1,10 @@
+id: raz1_custom_components
+label: Raz-1 Custom components and drivers
+description: >
+  My custom components and drivers for Gecko SDK Suite
+version: 0.0.1
+sdk:
+  id: gecko_sdk
+  version: 4.3.0
+component_path:
+  - path: "app/component/Silabs"

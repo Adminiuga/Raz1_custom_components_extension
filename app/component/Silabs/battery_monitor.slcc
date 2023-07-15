@@ -1,0 +1,39 @@
+id: sl_battery_monitor
+package: raz1_custom_components
+label: EFR32 Battery Monitor
+description: >
+  Battery Monitor v2 for series 1/Series 2 devices. Based on
+  https://github.com/SiliconLabs/zigbee_applications/tree/master/zigbee_battery_monitor/src/battery-monitor-v2
+
+category: hal
+quality: evaluation
+
+root_path: app
+requires:
+  - name: emlib_iadc
+  - name: emlib_prs
+
+config_file:
+    file_id: sl_battery_monitor_config
+    path: src/Silabs/sl_battery_monitor/config/sl_battery_monitor_config.h
+
+provides:
+  - name: sl_battery_monitor
+
+template_contribution:
+  - name: component_catalog
+    value: sl_battery_monitor
+
+  - name: event_handler
+    value:
+      event: internal_app_init
+      include: "sl_battery_monitor.h"
+      handler: "sl_battery_monitor_init"
+
+include:
+  - path: src/Silabs/sl_battery_monitor
+    file_list:
+      - path: sl_battery_monitor.h
+
+source:
+  - path: src/Silabs/sl_battery_monitor/sl_battery_monitor.c
