@@ -7,4 +7,5 @@ sdk:
   id: gecko_sdk
   version: 4.3.0
 component_path:
-  - path: "app/component/Silabs"
+  - path: "component/Silabs"
+  - path: "component/Zigbee"

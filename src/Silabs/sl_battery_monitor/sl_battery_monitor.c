@@ -37,9 +37,12 @@
 
 #include "app/framework/include/af.h"
 
-#include EMBER_AF_API_BATTERY_MONITOR
-#include EMBER_AF_API_GENERIC_INTERRUPT_CONTROL
+#include "gpiointerrupt.h"
 #include "em_cmu.h"
+#include "sl_power_manager.h"
+#include "sl_sleeptimer.h"
+#include "sl_battery_monitor.h"
+#include "sl_battery_monitor_config.h"
 
 #if defined(_SILICON_LABS_32B_SERIES_2)
 #include "em_iadc.h"
@@ -56,17 +59,19 @@
 
 // Shorter macros for plugin options
 #define FIFO_SIZE \
-  EMBER_AF_PLUGIN_BATTERY_MONITOR_V2_SAMPLE_FIFO_SIZE
+  SL_BATTERY_MONITOR_SAMPLE_FIFO_SIZE
 #define MS_BETWEEN_BATTERY_CHECK \
- (EMBER_AF_PLUGIN_BATTERY_MONITOR_V2_MONITOR_TIMEOUT_M * 60 * 1000)
+ (SL_BATTERY_MONITOR_TIMEOUT_MINUTES * 60 * 1000)
 #define BSP_BATTERYMON_TX_ACTIVE_CHANNEL \
-    EMBER_AF_PLUGIN_BATTERY_MONITOR_V2_TX_ACTIVE_PRS_CH
+    SL_BATTERY_MONITOR_TX_ACTIVE_CHANNEL
 #define BSP_BATTERYMON_TX_ACTIVE_PORT \
-    EMBER_AF_PLUGIN_BATTERY_MONITOR_V2_TX_ACTIVE_PORT
+    SL_BATTERY_MONITOR_TX_ACTIVE_PORT
 #define BSP_BATTERYMON_TX_ACTIVE_PIN \
-    EMBER_AF_PLUGIN_BATTERY_MONITOR_V2_TX_ACTIVE_PIN
+    SL_BATTERY_MONITOR_TX_ACTIVE_PIN
+#ifdef SL_BATTERY_MONITOR_TX_ACTIVE_LOC
 #define BSP_BATTERYMON_TX_ACTIVE_LOC \
-    EMBER_AF_PLUGIN_BATTERY_MONITOR_V2_TX_ACTIVE_LOC
+    SL_BATTERY_MONITOR_TX_ACTIVE_LOC
+#endif  // SL_BATTERY_MONITOR_TX_ACTIVE_LOC
 
 #define MAX_INT_MINUS_DELTA              0xe0000000
 
@@ -146,15 +151,14 @@ error("please define the correct macros here!")
 // ------------------------------------------------------------------------------
 // Forward Declaration
 static uint16_t filterVoltageSample(uint16_t sample);
-static uint32_t AdcToMilliV(uint32_t adcVal);
+static void tx_channel_irq_handler(uint8_t int_id, void *ctx);
+#if defined(_SILICON_LABS_32B_SERIES_2)
+static void handle_em0_transition(sl_power_manager_em_t from,
+                                  sl_power_manager_em_t to);
+#endif // _SILICON_LABS_32B_SERIES_2
 
 // ------------------------------------------------------------------------------
 // Globals
-
-EmberEventControl emberAfPluginBatteryMonitorV2ReadADCEventControl;
-
-// structure used to store irq configuration from GIC plugin
-static HalGenericInterruptControlIrqCfg *irqConfig;
 
 // count used to track when the last measurement occurred
 // Ticks start at 0.  We use this value to limit how frequently we make
@@ -172,15 +176,14 @@ static bool fifoInitialized = false;
 // return value if anyone needs to manually poll for data
 static uint16_t lastReportedVoltageMilliV;
 
+#if defined(_SILICON_LABS_32B_SERIES_2)
+static sl_power_manager_em_transition_event_handle_t em0_transition_event;
+#endif // _SILICON_LABS32B_SERIES_2
+
 // ------------------------------------------------------------------------------
 // Implementation of public functions
 
-void emberAfPluginBatteryMonitorV2InitCallback(void)
-{
-  halBatteryMonitorInitialize();
-}
-
-void halBatteryMonitorInitialize(void)
+void sl_battery_monitor_init(void)
 {
   uint32_t flags;
 
@@ -270,18 +273,33 @@ void halBatteryMonitorInitialize(void)
   #endif
 
   // Set up the generic interrupt controller to activate the readADC event when
-  // TX_ACTIVE goes hi
-  irqConfig = halGenericInterruptControlIrqCfgInitialize(
-    BSP_BATTERYMON_TX_ACTIVE_PIN,
-    BSP_BATTERYMON_TX_ACTIVE_PORT,
-    0);
-  halGenericInterruptControlIrqEventRegister(
-    irqConfig,
-    &emberAfPluginBatteryMonitorV2ReadADCEventControl);
-  halGenericInterruptControlIrqEdgeConfig(irqConfig,
-                                          HAL_GIC_INT_CFG_LEVEL_POS);
+  // TX_ACTIVE goes high
+  int int_id = GPIOINT_CallbackRegisterExt(
+      BSP_BATTERYMON_TX_ACTIVE_PIN,
+      tx_channel_irq_handler,
+      NULL);
+  if (int_id != INTERRUPT_UNAVAILABLE) {
+    GPIO_ExtIntConfig(
+        BSP_BATTERYMON_TX_ACTIVE_PORT,
+        BSP_BATTERYMON_TX_ACTIVE_PIN,
+        int_id,
+        true,
+        false,
+        true);
+    sl_zigbee_app_debug_println("sl_battery_monitor: Initialization complete");
+  } else {
+    sl_zigbee_app_debug_println("sl_battery_monitor: couldn't initialize PRS interrupt");
+  }
 
-  halGenericInterruptControlIrqEnable(irqConfig);
+  #if defined(_SILICON_LABS_32B_SERIES_2)
+  sl_power_manager_em_transition_event_info_t event_info = {
+    .event_mask = ( SL_POWER_MANAGER_EVENT_TRANSITION_ENTERING_EM0 \
+                    | SL_POWER_MANAGER_EVENT_TRANSITION_LEAVING_EM0),
+    .on_event   = handle_em0_transition,
+  };
+  sl_power_manager_subscribe_em_transition_event(&em0_transition_event,
+                                                 &event_info);
+  #endif
 }
 
 uint16_t sl_battery_monitor_get_voltage_in_mv(void)
@@ -356,15 +374,11 @@ SL_WEAK void sl_battery_monitor_measurement_ready_cb(uint16_t batteryVoltageMill
 // This event will sample the ADC during a radio transmission and notify any
 // interested parties of a new valid battery voltage level via the
 // sl_battery_monitor_measurement_ready_cb
-void emberAfPluginBatteryMonitorV2ReadADCEventHandler(void)
+static void tx_channel_irq_handler(uint8_t int_id, void *ctx)
 {
-  uint32_t flags;
-  uint32_t vData;
   uint16_t voltageMilliV;
   uint32_t currentMsTick = halCommonGetInt32uMillisecondTick();
   uint32_t timeSinceLastMeasureMS = currentMsTick - lastBatteryMeasureTick;
-
-  emberEventControlSetInactive(emberAfPluginBatteryMonitorV2ReadADCEventControl);
 
   if (timeSinceLastMeasureMS >= MS_BETWEEN_BATTERY_CHECK) {
     voltageMilliV = halBatteryMonitorReadVoltage();
@@ -406,17 +420,16 @@ static uint16_t filterVoltageSample(uint16_t sample)
   return sample;
 }
 
-void halSleepCallback(boolean enter, SleepModes sleepMode)
+#if defined(_SILICON_LABS_32B_SERIES_2)
+static void handle_em0_transition(sl_power_manager_em_t from,
+                                  sl_power_manager_em_t to)
 {
-  if (sleepMode < SLEEPMODE_WAKETIMER) {
-    return;
-  }
+  bool enter = ( SL_POWER_MANAGER_EM0 == from );
 
-  #if defined(_SILICON_LABS_32B_SERIES_2)
   if (enter) {
     IADC0->EN_CLR = IADC_EN_EN;
   } else {
       IADC0->EN_SET = IADC_EN_EN;
   }
-  #endif
 }
+#endif

@@ -3,7 +3,7 @@ id=uc.extension.raz1_custom_components
 
 version=0.0.1
 
-label=Raz-1 Custom Components
+label=Raz1 Custom Components
 description=My custom components and drivers
 
 prop.subLabel=Raz-1\\ Custom\\ Components\\ 0.0.1

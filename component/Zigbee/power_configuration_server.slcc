@@ -1,0 +1,36 @@
+package: raz1_custom_components
+description: Power Configuration Server cluster implementation
+label: Power Configuration Server Cluster
+quality: evaluation
+id: power_configuration_server
+category: Zigbee|Cluster Library|Common
+
+provides:
+   - name: power_configuration_server
+requires:
+   - name: sl_battery_monitor
+
+root_path: src/Zigbee
+
+config_file:
+  - path: power_configuration_server/config/power_configuration_server_config.h
+    file_id: power_configuration_server
+
+source:
+  - path: power_configuration_server/power_configuration_server.c
+
+include:
+  - path: power_configuration_server
+    file_list:
+      - path: power_configuration_server.h
+
+template_contribution:
+  - name: component_catalog
+    value: power_configuration_server
+
+  - name: cluster_functions
+    value:
+      cluster_name: PowerConfiguration
+      cluster_id: 0x1
+      cluster_type: server
+      init_function: emberAfPowerConfigurationClusterServerInitCallback
