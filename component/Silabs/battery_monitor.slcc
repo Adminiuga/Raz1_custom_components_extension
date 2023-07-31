@@ -1,4 +1,4 @@
-id: sl_battery_monitor
+id: sl_battery_monitor_v2
 package: raz1_custom_components
 label: EFR32 Battery Monitor
 description: >
