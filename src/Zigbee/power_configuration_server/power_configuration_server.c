@@ -24,16 +24,22 @@
  * SOFTWARE.
  ******************************************************************************/
 
-#include "sl_power_server_config.h"
+#include "app/framework/include/af.h"
+#include "power_configuration_server_config.h"
 
-#if SL_POWER_CONFIGURATION_BATTERY_TYPE == "CR2032"
+#if SL_POWER_CONFIGURATION_BATTERY_TYPE == SL_POWER_CONFIGURATION_BATTERY_TYPE_CR2032
 #define SL_POWER_CONFIGURATION_BATTERY_VOLTAGE_CAPACITY \
    { { 3.0, 100 }, { 2.9, 80 }, { 2.8, 60 }, { 2.7, 40 }, { 2.6, 30 }, \
      { 2.5, 20 }, { 2.4, 10 }, { 2.0, 0 } };
-#else if SL_POWER_CONFIGURATION_BATTERY_TYPE == "18650"
+#elif SL_POWER_CONFIGURATION_BATTERY_TYPE == SL_POWER_CONFIGURATION_BATTERY_TYPE_18650
 #define SL_POWER_CONFIGURATION_BATTERY_VOLTAGE_CAPACITY \
-   { { 4.2, 100 }, { 4.06, 90 }, { 3.98, 80 }, { 3.92, 70 }, { 3,87, 60 }, 5
-   { 3.82, 50 }, { 3.79, 40 }, { 3.77, 30 }, { 3.74, 20 }, { 3.68, 10 } \
+   { { 4.2, 100 }, { 4.06, 90 }, { 3.98, 80 }, { 3.92, 70 }, { 3.87, 60 }, \
+   { 3.82, 50 }, { 3.79, 40 }, { 3.77, 30 }, { 3.74, 20 }, { 3.68, 10 }, \
    { 3.60, 5 }, { 3.20, 0 } }
 #endif
 
+// ------------------------------------------------------------------------------
+// Component call backs
+WEAK(void emberAfPowerConfigurationClusterServerInitCallback(uint8_t endpoint))
+{
+}

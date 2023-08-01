@@ -63,7 +63,7 @@
  *
  * @param endpoint Endpoint that is being initialized  Ver.: always
  */
-void emberAfPluginPowerConfigurationClusterServerPostInitCallback(uint8_t endpoint);
+void emberAfPowerConfigurationClusterServerInitCallback(uint8_t endpoint);
 
 /** @} */ // end of power_configuration_server_cb
 /** @} */ // end of name Callbacks
