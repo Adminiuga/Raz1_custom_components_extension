@@ -65,6 +65,20 @@
  */
 void emberAfPowerConfigurationClusterServerInitCallback(uint8_t endpoint);
 
+
+/** @brief Power Configuration cluster measurement ready.
+ *
+ * after battery voltage is received and converted into battery % remaining
+ * execute this callback.
+ *
+ * @param endpoint Endpoint that is being initialized  Ver.: always
+ * @param battery_double_percent Battery Percent Remaining times 2
+ * @param battery_milliV Battery voltage in milli Volts
+ */
+void emberAfPowerConfigurationClusterBatteryUpdated(uint8_t endpoint,
+                                                    uint8_t battery_double_percent,
+                                                    uint16_t battery_milliV);
+
 /** @} */ // end of power_configuration_server_cb
 /** @} */ // end of name Callbacks
 /** @} */ // end of power-configuration-server
