@@ -18,6 +18,8 @@
 #ifndef SL_BATTERY_MONITOR_CONFIG_H
 #define SL_BATTERY_MONITOR_CONFIG_H
 
+#include "em_iadc.h"
+
 // <<< Use Configuration Wizard in Context Menu
 
 // <h> Battery Monitor settings
@@ -33,8 +35,95 @@
 // <i> The number of entries in the fifo used to collect ADC reads of the battery
 #define SL_BATTERY_MONITOR_SAMPLE_FIFO_SIZE 16
 
+// <o SL_BATTERY_MONITOR_IADC_POS> IADC Pos Select Input
+// <i> Default: Avdd
+// <iadcPosInputAvdd=> Avdd
+// <iadcPosInputVddio=> Vddio
+// <iadcPosInputDvdd=> Dvdd
+// <iadcPosInputDecouple=> Decouple
+// <iadcPosInputPortAPin0=> PortAPin0
+// <iadcPosInputPortAPin1=> PortAPin1
+// <iadcPosInputPortAPin2=> PortAPin2
+// <iadcPosInputPortAPin3=> PortAPin3
+// <iadcPosInputPortAPin4=> PortAPin4
+// <iadcPosInputPortAPin5=> PortAPin5
+// <iadcPosInputPortAPin6=> PortAPin6
+// <iadcPosInputPortAPin7=> PortAPin7
+// <iadcPosInputPortAPin8=> PortAPin8
+// <iadcPosInputPortAPin9=> PortAPin9
+// <iadcPosInputPortAPin10=> PortAPin10
+// <iadcPosInputPortAPin11=> PortAPin11
+// <iadcPosInputPortAPin12=> PortAPin12
+// <iadcPosInputPortAPin13=> PortAPin13
+// <iadcPosInputPortAPin14=> PortAPin14
+// <iadcPosInputPortAPin15=> PortAPin15
+// <iadcPosInputPortBPin0=> PortBPin0
+// <iadcPosInputPortBPin1=> PortBPin1
+// <iadcPosInputPortBPin2=> PortBPin2
+// <iadcPosInputPortBPin3=> PortBPin3
+// <iadcPosInputPortBPin4=> PortBPin4
+// <iadcPosInputPortBPin5=> PortBPin5
+// <iadcPosInputPortBPin6=> PortBPin6
+// <iadcPosInputPortBPin7=> PortBPin7
+// <iadcPosInputPortBPin8=> PortBPin8
+// <iadcPosInputPortBPin9=> PortBPin9
+// <iadcPosInputPortBPin10=> PortBPin10
+// <iadcPosInputPortBPin11=> PortBPin11
+// <iadcPosInputPortBPin12=> PortBPin12
+// <iadcPosInputPortBPin13=> PortBPin13
+// <iadcPosInputPortBPin14=> PortBPin14
+// <iadcPosInputPortBPin15=> PortBPin15
+// <iadcPosInputPortCPin0=> PortCPin0
+// <iadcPosInputPortCPin1=> PortCPin1
+// <iadcPosInputPortCPin2=> PortCPin2
+// <iadcPosInputPortCPin3=> PortCPin3
+// <iadcPosInputPortCPin4=> PortCPin4
+// <iadcPosInputPortCPin5=> PortCPin5
+// <iadcPosInputPortCPin6=> PortCPin6
+// <iadcPosInputPortCPin7=> PortCPin7
+// <iadcPosInputPortCPin8=> PortCPin8
+// <iadcPosInputPortCPin9=> PortCPin9
+// <iadcPosInputPortCPin10=> PortCPin10
+// <iadcPosInputPortCPin11=> PortCPin11
+// <iadcPosInputPortCPin12=> PortCPin12
+// <iadcPosInputPortCPin13=> PortCPin13
+// <iadcPosInputPortCPin14=> PortCPin14
+// <iadcPosInputPortCPin15=> PortCPin15
+// <iadcPosInputPortDPin0=> PortDPin0
+// <iadcPosInputPortDPin1=> PortDPin1
+// <iadcPosInputPortDPin2=> PortDPin2
+// <iadcPosInputPortDPin3=> PortDPin3
+// <iadcPosInputPortDPin4=> PortDPin4
+// <iadcPosInputPortDPin5=> PortDPin5
+// <iadcPosInputPortDPin6=> PortDPin6
+// <iadcPosInputPortDPin7=> PortDPin7
+// <iadcPosInputPortDPin8=> PortDPin8
+// <iadcPosInputPortDPin9=> PortDPin9
+// <iadcPosInputPortDPin10=> PortDPin10
+// <iadcPosInputPortDPin11=> PortDPin11
+// <iadcPosInputPortDPin12=> PortDPin12
+// <iadcPosInputPortDPin13=> PortDPin13
+// <iadcPosInputPortDPin14=> PortDPin14
+// <iadcPosInputPortDPin15=> PortDPin15
+#define SL_BATTERY_MONITOR_IADC_POS             iadcPosInputAvdd
+
+// <e SL_BATTERY_MONITOR_R_DIVIDER_ENABLED> Battery Voltage is using R1/R2 resistive divider
+#define SL_BATTERY_MONITOR_R_DIVIDER_ENABLED    0
+
+// <o SL_BATTERY_MONITOR_R_DIVIDER_R1> R1 Resistive divider Input Voltage leg
+#define SL_BATTERY_MONITOR_R_DIVIDER_R1         1000
+
+// <o SL_BATTERY_MONITOR_R_DIVIDER_R2> R2 Resistive divider Ground leg
+#define SL_BATTERY_MONITOR_R_DIVIDER_R2         1000
+// </e>
+
 // </h> end Battery Monitor config
 // <<< end of configuration section >>>
+
+#define SL_BATTERY_MONITOR_R_DIVIDER_R1_R2 (SL_BATTERY_MONITOR_R_DIVIDER_R1 \
+                                            + SL_BATTERY_MONITOR_R_DIVIDER_R2)
+#define SL_BATTERY_MONITOR_R_DIVIDER_COEF  (SL_BATTERY_MONITOR_R_DIVIDER_R1_R2 \
+                                            / SL_BATTERY_MONITOR_R_DIVIDER_R2)
 
 
 // <<< sl:start pin_tool >>>

@@ -74,6 +74,7 @@
 #endif  // SL_BATTERY_MONITOR_TX_ACTIVE_LOC
 
 #define MAX_INT_MINUS_DELTA              0xe0000000
+#define _SL_BATTERY_MONITOR_ADC_MAX      0xfff
 
 #if defined(_SILICON_LABS_32B_SERIES_2)
 
@@ -92,12 +93,12 @@ error("please define the correct macros here!")
 #define CLK_ADC_FREQ            100000   // CLK_ADC
 
 /** Default config for IADC single input structure. */
-#define IADC_SINGLEINPUT_BATTERY                             \
-  {                                                           \
-    iadcNegInputGnd,             /* Negative input GND */     \
-    iadcPosInputAvdd,            /* Positive input iadcPosInputAvdd */     \
-    0,                           /* Config 0 */               \
-    false                        /* Do not compare results */ \
+#define IADC_SINGLEINPUT_BATTERY                                       \
+  {                                                                    \
+    iadcNegInputGnd,             /* Negative input GND */              \
+    SL_BATTERY_MONITOR_IADC_POS, /* Positive input iadcPosInputAvdd */ \
+    0,                           /* Config 0 */                        \
+    false                        /* Do not compare results */          \
   }
 
 #define IADC_REFERENCE_VOLTAGE_MILLIVOLTS 1210
@@ -134,7 +135,7 @@ error("please define the correct macros here!")
     adcAcqTime16, /* 1 ADC_CLK cycle acquisition time. */             \
     adcRef5VDIFF, /* V internal reference. */                         \
     adcRes12Bit, /* 12 bit resolution. */                             \
-    adcPosSelAVDD, /* Select Vdd as posSel */                         \
+    SL_BATTERY_MONITOR_ADC_POS_SEL, /* Select Vdd as posSel */        \
     adcNegSelVSS, /* Select Vss as negSel */                          \
     false,       /* Single ended input. */                            \
     false,       /* PRS disabled. */                                  \
@@ -146,7 +147,7 @@ error("please define the correct macros here!")
 
 #define ADC_REFERENCE_VOLTAGE_MILLIVOLTS 5000
 
-#endif
+#endif  // defined(_SILICON_LABS_32B_SERIES_2)
 
 // ------------------------------------------------------------------------------
 // Forward Declaration
@@ -312,9 +313,11 @@ static uint32_t halBatteryMonitorReadVoltage()
   uint32_t milliV = 0;
     
   #if defined(_SILICON_LABS_32B_SERIES_2)
-  uint32_t vMax = 0xFFF; // 12 bit ADC maximum
-  uint32_t referenceMilliV = IADC_REFERENCE_VOLTAGE_MILLIVOLTS;
-  float milliVPerBit = (float)referenceMilliV / (float)vMax;
+  float milliVPerBit = (float)IADC_REFERENCE_VOLTAGE_MILLIVOLTS
+                     / (float)_SL_BATTERY_MONITOR_ADC_MAX;
+#if SL_BATTERY_MONITOR_R_DIVIDER_ENABLED == 1
+  milliVPerBit *= (float)SL_BATTERY_MONITOR_R_DIVIDER_COEF;
+#endif  // SL_BATTERY_MONITOR_R_DIVIDER_ENABLED
 
   IADC_InitSingle_t  initSingle = IADC_INITSINGLE_DEFAULT;
   IADC_SingleInput_t initSingleInput = IADC_SINGLEINPUT_BATTERY;
@@ -339,9 +342,11 @@ static uint32_t halBatteryMonitorReadVoltage()
 
   uint32_t flags;
   uint32_t vData;
-  uint32_t vMax = 0xFFF; // 12 bit ADC maximum
-  uint32_t referenceMilliV = ADC_REFERENCE_VOLTAGE_MILLIVOLTS;
-  float milliVPerBit = (float)referenceMilliV / (float)vMax;
+  float milliVPerBit = (float)ADC_REFERENCE_VOLTAGE_MILLIVOLTS
+                     / (float)_SL_BATTERY_MONITOR_ADC_MAX;
+#if SL_BATTERY_MONITOR_R_DIVIDER_ENABLED == 1
+  milliVPerBit *= (float)SL_BATTERY_MONITOR_R_DIVIDER_COEF;
+#endif // SL_BATTERY_MONITOR_R_DIVIDER_ENABLED
   ADC_InitSingle_TypeDef initAdc = ADC_INITSINGLE_BATTERY_VOLTAGE;
   
   // In case something else in the system was using the ADC, reconfigure it to
