@@ -135,16 +135,16 @@ void sl_battery_monitor_measurement_ready_cb(uint16_t milliV)
  */
 static uint8_t convert_voltage_to_capacity(uint16_t milliV)
 {
-  float volts = milliV / 1000;
+  float volts = milliV / 1000.0F;
   uint8_t res = 0;
   uint8_t count = sizeof(batt_volt_to_cap) / sizeof(batt_cap_entry_t);
 
   if (volts >= batt_volt_to_cap[0].volts) {
     // Return with max capacity if voltage is greater than the max voltage in the model.
-    res = 2 * batt_volt_to_cap[0].capacity;
+    res = batt_volt_to_cap[0].capacity;
   } else if (volts <= batt_volt_to_cap[count - 1].volts) {
     // Return with min capacity if voltage is smaller than the min voltage in the model.
-    res = 2 * batt_volt_to_cap[count - 1].capacity;
+    res = batt_volt_to_cap[count - 1].capacity;
   } else {
     uint8_t i;
     // Otherwise find the 2 points in the model where the voltage level fits in between,
@@ -152,7 +152,6 @@ static uint8_t convert_voltage_to_capacity(uint16_t milliV)
     for (i = 0; i < (count - 1); i++) {
       if ((volts < batt_volt_to_cap[i].volts) && (volts >= batt_volt_to_cap[i + 1].volts)) {
         res = (uint8_t)((volts - batt_volt_to_cap[i + 1].volts)
-                        * 2
                         * (batt_volt_to_cap[i].capacity - batt_volt_to_cap[i + 1].capacity)
                         / (batt_volt_to_cap[i].volts - batt_volt_to_cap[i + 1].volts));
         res += batt_volt_to_cap[i + 1].capacity;
@@ -161,5 +160,5 @@ static uint8_t convert_voltage_to_capacity(uint16_t milliV)
     }
   }
 
-  return res;
+  return res << 1;
 }
