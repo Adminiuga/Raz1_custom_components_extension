@@ -1,0 +1,36 @@
+id: rz_led_blink
+package: raz1_custom_components
+label: Simple Led blinker
+description: Blink instances of sl_simple_led
+
+category: Application|Utility|Led Blink
+quality: evaluation
+
+root_path: src/components
+requires:
+  - name: simple_led
+
+config_file:
+  - file_id: rz_led_blink
+    path: rz_led_blink/config/rz_led_blink_config.h
+
+provides:
+  - name: rz_led_blink
+
+template_contribution:
+  - name: component_catalog
+    value: rz_led_blink
+
+  - name: event_handler
+    value:
+      event: service_init
+      include: "rz_led_blink.h"
+      handler: "rz_led_blink_init"
+
+include:
+  - path: rz_led_blink
+    file_list:
+      - path: rz_led_blink.h
+
+source:
+  - path: rz_led_blink/rz_led_blink.c
