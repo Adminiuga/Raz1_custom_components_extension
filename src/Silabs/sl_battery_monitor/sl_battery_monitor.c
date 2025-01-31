@@ -186,8 +186,6 @@ static sl_power_manager_em_transition_event_handle_t em0_transition_event;
 
 void sl_battery_monitor_init(void)
 {
-  uint32_t flags;
-
   #if defined(_SILICON_LABS_32B_SERIES_2)
   IADC_Init_t        init = IADC_INIT_DEFAULT;
   IADC_AllConfigs_t  initAllConfigs = IADC_ALLCONFIGS_DEFAULT;
@@ -233,6 +231,7 @@ void sl_battery_monitor_init(void)
                   0);  
 
   #else //series 1
+  uint32_t flags;
   
   ADC_Init_TypeDef init = ADC_INIT_DEFAULT;
   ADC_InitSingle_TypeDef initAdc = ADC_INITSINGLE_BATTERY_VOLTAGE;
