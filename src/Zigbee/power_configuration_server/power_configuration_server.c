@@ -44,6 +44,7 @@
 
 // -----------------------------------------------------------------------------
 // Private type definitions
+#define MILLIVOLTS_UNINITIALIZED 0xFFFF
 
 typedef struct {
   float volts;
@@ -54,8 +55,9 @@ typedef struct {
   uint16_t milliV;
 } battery_update_t;
 
-static volatile battery_update_t _lastUpdateValues;
+static volatile battery_update_t _lastUpdateValues = { .milliV = MILLIVOLTS_UNINITIALIZED };
 static sl_zigbee_event_t batteryUpdatedEvent;
+static bool isInitialized = false;
 
 // -----------------------------------------------------------------------------
 // Private variables
@@ -70,7 +72,10 @@ static void battery_update_handler(sl_zigbee_event_t *event);
 // Component call backs
 void emberAfPowerConfigurationClusterServerInitCallback(uint8_t endpoint)
 {
+  if ( isInitialized ) return;
+  isInitialized = true;
   sl_zigbee_af_isr_event_init(&batteryUpdatedEvent, battery_update_handler);
+  if ( MILLIVOLTS_UNINITIALIZED != _lastUpdateValues.milliV) battery_update_handler(NULL);
   emberAfPowerConfigClusterPrintln("Power Configuration Cluster: initialized");
 }
 
@@ -89,14 +94,18 @@ SL_WEAK void emberAfPowerConfigurationClusterBatteryUpdated(uint8_t endpoint,
 void sl_battery_monitor_measurement_ready_cb(uint16_t milliV)
 {
   _lastUpdateValues.milliV = milliV;
-  sl_zigbee_event_set_active(&batteryUpdatedEvent);
+  if ( isInitialized ) sl_zigbee_event_set_active(&batteryUpdatedEvent);
 }
 
 void battery_update_handler(sl_zigbee_event_t *event)
 {
   EmberAfStatus afStatus;
-  uint8_t deciV = _lastUpdateValues.milliV / 100;
-  uint8_t capacity = convert_voltage_to_capacity(_lastUpdateValues.milliV);
+  uint8_t deciV;
+  uint8_t capacity;
+
+  sl_zigbee_event_set_inactive( &batteryUpdatedEvent );
+  deciV = _lastUpdateValues.milliV / 100;
+  capacity = convert_voltage_to_capacity(_lastUpdateValues.milliV);
 
   sl_zigbee_app_debug_print("Power configuration cluster: reported voltage: %d dV", deciV);
   sl_zigbee_app_debug_println(", reported double battery %% remaining: %d%%", capacity);
