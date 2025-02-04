@@ -52,10 +52,8 @@
 
 #include "em_prs.h"
 
-#define GPIO_PORT_A gpioPortA
-#define GPIO_PORT_B gpioPortB
-#define GPIO_PORT_C gpioPortC
-#define GPIO_PORT_D gpioPortD
+#define MOD(a, b) ((a) % (b))
+#define IS_EVEN(a) (MOD((a), 2) == 0)
 
 // Shorter macros for plugin options
 #define FIFO_SIZE \
@@ -101,7 +99,20 @@ error("please define the correct macros here!")
     false                        /* Do not compare results */          \
   }
 
-#define IADC_REFERENCE_VOLTAGE_MILLIVOLTS 1210
+#define IADC_REF_MV             1210
+#if SL_BATTERY_MONITOR_IADC_ANALOG_GAIN == _IADC_CFG_ANALOGGAIN_ANAGAIN0P5
+#define IADC_REFERENCE_VOLTAGE_MILLIVOLTS (IADC_REF_MV << 1)
+#define IADC_ANALOG_GAIN                  iadcCfgAnalogGain0P5x
+#elif SL_BATTERY_MONITOR_IADC_ANALOG_GAIN == _IADC_CFG_ANALOGGAIN_ANAGAIN2
+#define IADC_REFERENCE_VOLTAGE_MILLIVOLTS (IADC_REF_MV >> 1)
+#define IADC_ANALOG_GAIN                  iadcCfgAnalogGain2x
+#elif SL_BATTERY_MONITOR_IADC_ANALOG_GAIN == _IADC_CFG_ANALOGGAIN_ANAGAIN4
+#define IADC_REFERENCE_VOLTAGE_MILLIVOLTS (IADC_REF_MV >> 2)
+#define IADC_ANALOG_GAIN                  iadcCfgAnalogGain4x
+#else
+#define IADC_REFERENCE_VOLTAGE_MILLIVOLTS IADC_REF_MV
+#define IADC_ANALOG_GAIN                  iadcCfgAnalogGain1x
+#endif // SL_BATTERY_MONITOR_ANALOG_GAIN
 
 #else //series 1
 
@@ -202,6 +213,7 @@ void sl_battery_monitor_init(void)
   init.srcClkPrescale = IADC_calcSrcClkPrescale(IADC0, CLK_SRC_ADC_FREQ, 0); 
 
   initAllConfigs.configs[0].reference = iadcCfgReferenceInt1V2;
+  initAllConfigs.configs[0].analogGain = IADC_ANALOG_GAIN;
   
   // Divides CLK_SRC_ADC to set the CLK_ADC frequency
   initAllConfigs.configs[0].adcClkPrescale = IADC_calcAdcClkPrescale(IADC0,
@@ -213,6 +225,29 @@ void sl_battery_monitor_init(void)
 
   initSingle.dataValidLevel = IADC_SCANFIFOCFG_DVL_VALID4;
   IADC_initSingle(IADC0, &initSingle, &initSingleInput);
+  // Allocate the analog bus for ADC0 inputs
+  if ( iadcPosInputPortAPin0 <= SL_BATTERY_MONITOR_IADC_POS
+       && SL_BATTERY_MONITOR_IADC_POS <= iadcPosInputPortAPin15 ) {
+#if IS_EVEN(SL_BATTERY_MONITOR_IADC_POS)
+    GPIO->ABUSALLOC |= GPIO_ABUSALLOC_AEVEN0_ADC0;
+#else
+    GPIO->ABUSALLOC |= GPIO_ABUSALLOC_AODD0_ADC0;
+#endif
+  } else if ( iadcPosInputPortBPin0 <= SL_BATTERY_MONITOR_IADC_POS
+              && SL_BATTERY_MONITOR_IADC_POS <= iadcPosInputPortBPin15 ) {
+#if IS_EVEN(SL_BATTERY_MONITOR_IADC_POS)
+    GPIO->BBUSALLOC |= GPIO_BBUSALLOC_BEVEN0_ADC0;
+#else
+    GPIO->BBUSALLOC |= GPIO_BBUSALLOC_BODD0_ADC0;
+#endif
+  } else if ( iadcPosInputPortCPin0 <= SL_BATTERY_MONITOR_IADC_POS
+              && SL_BATTERY_MONITOR_IADC_POS <= iadcPosInputPortDPin15 ) {
+#if IS_EVEN(SL_BATTERY_MONITOR_IADC_POS)
+    GPIO->CDBUSALLOC |= GPIO_CDBUSALLOC_CDEVEN0_ADC0;
+#else
+    GPIO->CDBUSALLOC |= GPIO_CDBUSALLOC_CDODD0_ADC0;
+#endif
+  }
 
   CMU_ClockEnable(cmuClock_PRS, true);
 
@@ -310,7 +345,7 @@ uint16_t sl_battery_monitor_get_voltage_in_mv(void)
 static uint32_t halBatteryMonitorReadVoltage()
 {
   uint32_t milliV = 0;
-    
+
   #if defined(_SILICON_LABS_32B_SERIES_2)
   float milliVPerBit = (float)IADC_REFERENCE_VOLTAGE_MILLIVOLTS
                      / (float)_SL_BATTERY_MONITOR_ADC_MAX;
@@ -322,8 +357,8 @@ static uint32_t halBatteryMonitorReadVoltage()
   IADC_SingleInput_t initSingleInput = IADC_SINGLEINPUT_BATTERY;
 
   initSingle.dataValidLevel = IADC_SCANFIFOCFG_DVL_VALID4;
-  IADC_initSingle(IADC0, &initSingle, &initSingleInput);  
-  
+  IADC_initSingle(IADC0, &initSingle, &initSingleInput);
+
   // Start IADC conversion
   IADC_command(IADC0, iadcCmdStartSingle);
 
@@ -333,8 +368,8 @@ static uint32_t halBatteryMonitorReadVoltage()
 
   // Get IADC result
   IADC_Result_t sample = IADC_readSingleResult(IADC0);
-  
-  milliV = (uint32_t)(milliVPerBit * sample.data) * 4; //refer to RM 23.3.5.2 to understand the factor 4.
+
+  milliV = (uint32_t)(milliVPerBit * sample.data);
   emberAfAppPrintln("IADC sample: %d, milliV=%lu", sample.data, milliV);
 
   #else //series 1
@@ -347,10 +382,10 @@ static uint32_t halBatteryMonitorReadVoltage()
   milliVPerBit *= (float)SL_BATTERY_MONITOR_R_DIVIDER_COEF;
 #endif // SL_BATTERY_MONITOR_R_DIVIDER_ENABLED
   ADC_InitSingle_TypeDef initAdc = ADC_INITSINGLE_BATTERY_VOLTAGE;
-  
+
   // In case something else in the system was using the ADC, reconfigure it to
   // properly sample the battery voltage
-  ADC_InitSingle(ADC0, &initAdc);  
+  ADC_InitSingle(ADC0, &initAdc);
 
   // The most common and shortest (other than the ACK) transmission is the
   // data poll.  It takes 512 uS for a data poll, which is plenty of time for
@@ -366,7 +401,7 @@ static uint32_t halBatteryMonitorReadVoltage()
 
   milliV = (uint32_t)(milliVPerBit * vData);
   emberAfAppPrintln("ADC sample: %d, milliV=%lu", vData, milliV);
-  #endif    
+  #endif
 
   return milliV;
 }
