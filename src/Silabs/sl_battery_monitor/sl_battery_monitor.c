@@ -99,7 +99,20 @@ error("please define the correct macros here!")
     false                        /* Do not compare results */          \
   }
 
-#define IADC_REFERENCE_VOLTAGE_MILLIVOLTS 1210
+#define IADC_REF_MV             1210
+#if SL_BATTERY_MONITOR_IADC_ANALOG_GAIN == _IADC_CFG_ANALOGGAIN_ANAGAIN0P5
+#define IADC_REFERENCE_VOLTAGE_MILLIVOLTS (IADC_REF_MV << 1)
+#define IADC_ANALOG_GAIN                  iadcCfgAnalogGain0P5x
+#elif SL_BATTERY_MONITOR_IADC_ANALOG_GAIN == _IADC_CFG_ANALOGGAIN_ANAGAIN2
+#define IADC_REFERENCE_VOLTAGE_MILLIVOLTS (IADC_REF_MV >> 1)
+#define IADC_ANALOG_GAIN                  iadcCfgAnalogGain2x
+#elif SL_BATTERY_MONITOR_IADC_ANALOG_GAIN == _IADC_CFG_ANALOGGAIN_ANAGAIN4
+#define IADC_REFERENCE_VOLTAGE_MILLIVOLTS (IADC_REF_MV >> 2)
+#define IADC_ANALOG_GAIN                  iadcCfgAnalogGain4x
+#else
+#define IADC_REFERENCE_VOLTAGE_MILLIVOLTS IADC_REF_MV
+#define IADC_ANALOG_GAIN                  iadcCfgAnalogGain1x
+#endif // SL_BATTERY_MONITOR_ANALOG_GAIN
 
 #else //series 1
 
@@ -200,6 +213,7 @@ void sl_battery_monitor_init(void)
   init.srcClkPrescale = IADC_calcSrcClkPrescale(IADC0, CLK_SRC_ADC_FREQ, 0); 
 
   initAllConfigs.configs[0].reference = iadcCfgReferenceInt1V2;
+  initAllConfigs.configs[0].analogGain = IADC_ANALOG_GAIN;
   
   // Divides CLK_SRC_ADC to set the CLK_ADC frequency
   initAllConfigs.configs[0].adcClkPrescale = IADC_calcAdcClkPrescale(IADC0,
