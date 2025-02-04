@@ -345,7 +345,7 @@ uint16_t sl_battery_monitor_get_voltage_in_mv(void)
 static uint32_t halBatteryMonitorReadVoltage()
 {
   uint32_t milliV = 0;
-    
+
   #if defined(_SILICON_LABS_32B_SERIES_2)
   float milliVPerBit = (float)IADC_REFERENCE_VOLTAGE_MILLIVOLTS
                      / (float)_SL_BATTERY_MONITOR_ADC_MAX;
@@ -357,8 +357,8 @@ static uint32_t halBatteryMonitorReadVoltage()
   IADC_SingleInput_t initSingleInput = IADC_SINGLEINPUT_BATTERY;
 
   initSingle.dataValidLevel = IADC_SCANFIFOCFG_DVL_VALID4;
-  IADC_initSingle(IADC0, &initSingle, &initSingleInput);  
-  
+  IADC_initSingle(IADC0, &initSingle, &initSingleInput);
+
   // Start IADC conversion
   IADC_command(IADC0, iadcCmdStartSingle);
 
@@ -368,7 +368,7 @@ static uint32_t halBatteryMonitorReadVoltage()
 
   // Get IADC result
   IADC_Result_t sample = IADC_readSingleResult(IADC0);
-  
+
   milliV = (uint32_t)(milliVPerBit * sample.data) * 4; //refer to RM 23.3.5.2 to understand the factor 4.
   emberAfAppPrintln("IADC sample: %d, milliV=%lu", sample.data, milliV);
 
@@ -382,10 +382,10 @@ static uint32_t halBatteryMonitorReadVoltage()
   milliVPerBit *= (float)SL_BATTERY_MONITOR_R_DIVIDER_COEF;
 #endif // SL_BATTERY_MONITOR_R_DIVIDER_ENABLED
   ADC_InitSingle_TypeDef initAdc = ADC_INITSINGLE_BATTERY_VOLTAGE;
-  
+
   // In case something else in the system was using the ADC, reconfigure it to
   // properly sample the battery voltage
-  ADC_InitSingle(ADC0, &initAdc);  
+  ADC_InitSingle(ADC0, &initAdc);
 
   // The most common and shortest (other than the ACK) transmission is the
   // data poll.  It takes 512 uS for a data poll, which is plenty of time for
@@ -401,7 +401,7 @@ static uint32_t halBatteryMonitorReadVoltage()
 
   milliV = (uint32_t)(milliVPerBit * vData);
   emberAfAppPrintln("ADC sample: %d, milliV=%lu", vData, milliV);
-  #endif    
+  #endif
 
   return milliV;
 }
