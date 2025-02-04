@@ -369,7 +369,7 @@ static uint32_t halBatteryMonitorReadVoltage()
   // Get IADC result
   IADC_Result_t sample = IADC_readSingleResult(IADC0);
 
-  milliV = (uint32_t)(milliVPerBit * sample.data) * 4; //refer to RM 23.3.5.2 to understand the factor 4.
+  milliV = (uint32_t)(milliVPerBit * sample.data);
   emberAfAppPrintln("IADC sample: %d, milliV=%lu", sample.data, milliV);
 
   #else //series 1
