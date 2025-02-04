@@ -52,10 +52,8 @@
 
 #include "em_prs.h"
 
-#define GPIO_PORT_A gpioPortA
-#define GPIO_PORT_B gpioPortB
-#define GPIO_PORT_C gpioPortC
-#define GPIO_PORT_D gpioPortD
+#define MOD(a, b) ((a) % (b))
+#define IS_EVEN(a) (MOD((a), 2) == 0)
 
 // Shorter macros for plugin options
 #define FIFO_SIZE \
@@ -213,6 +211,29 @@ void sl_battery_monitor_init(void)
 
   initSingle.dataValidLevel = IADC_SCANFIFOCFG_DVL_VALID4;
   IADC_initSingle(IADC0, &initSingle, &initSingleInput);
+  // Allocate the analog bus for ADC0 inputs
+  if ( iadcPosInputPortAPin0 <= SL_BATTERY_MONITOR_IADC_POS
+       && SL_BATTERY_MONITOR_IADC_POS <= iadcPosInputPortAPin15 ) {
+#if IS_EVEN(SL_BATTERY_MONITOR_IADC_POS)
+    GPIO->ABUSALLOC |= GPIO_ABUSALLOC_AEVEN0_ADC0;
+#else
+    GPIO->ABUSALLOC |= GPIO_ABUSALLOC_AODD0_ADC0;
+#endif
+  } else if ( iadcPosInputPortBPin0 <= SL_BATTERY_MONITOR_IADC_POS
+              && SL_BATTERY_MONITOR_IADC_POS <= iadcPosInputPortBPin15 ) {
+#if IS_EVEN(SL_BATTERY_MONITOR_IADC_POS)
+    GPIO->BBUSALLOC |= GPIO_BBUSALLOC_BEVEN0_ADC0;
+#else
+    GPIO->BBUSALLOC |= GPIO_BBUSALLOC_BODD0_ADC0;
+#endif
+  } else if ( iadcPosInputPortCPin0 <= SL_BATTERY_MONITOR_IADC_POS
+              && SL_BATTERY_MONITOR_IADC_POS <= iadcPosInputPortDPin15 ) {
+#if IS_EVEN(SL_BATTERY_MONITOR_IADC_POS)
+    GPIO->CDBUSALLOC |= GPIO_CDBUSALLOC_CDEVEN0_ADC0;
+#else
+    GPIO->CDBUSALLOC |= GPIO_CDBUSALLOC_CDODD0_ADC0;
+#endif
+  }
 
   CMU_ClockEnable(cmuClock_PRS, true);
 
