@@ -162,8 +162,11 @@ error("please define the correct macros here!")
 
 // ------------------------------------------------------------------------------
 // Forward Declaration
+static void _activate_prs(void);
+static void _deactivate_prs(void);
 static uint16_t filterVoltageSample(uint16_t sample);
 static void tx_channel_irq_handler(uint8_t int_id, void *ctx);
+static uint32_t halBatteryMonitorReadVoltage();
 #if defined(_SILICON_LABS_32B_SERIES_2)
 static void handle_em0_transition(sl_power_manager_em_t from,
                                   sl_power_manager_em_t to);
@@ -183,6 +186,7 @@ static uint32_t lastBatteryMeasureTick = MAX_INT_MINUS_DELTA;
 static uint8_t samplePtr = 0;
 static uint16_t voltageFifo[FIFO_SIZE];
 static bool fifoInitialized = false;
+static uint8_t interrupt_id = INTERRUPT_UNAVAILABLE;
 
 // Remember the last reported voltage value from callback, which will be the
 // return value if anyone needs to manually poll for data
@@ -248,23 +252,6 @@ void sl_battery_monitor_init(void)
     GPIO->CDBUSALLOC |= GPIO_CDBUSALLOC_CDODD0_ADC0;
 #endif
   }
-
-  CMU_ClockEnable(cmuClock_PRS, true);
-
-  // Initialize the PRS system to drive a GPIO high when the preamble is in the
-  // air, effectively becoming a TX_ACT pin
-  PRS_SourceAsyncSignalSet(BSP_BATTERYMON_TX_ACTIVE_CHANNEL,
-                           PRS_SOURCE,
-                           PRS_SIGNAL);
-  PRS_PinOutput(BSP_BATTERYMON_TX_ACTIVE_CHANNEL, 
-                prsTypeAsync, 
-                BSP_BATTERYMON_TX_ACTIVE_PORT, 
-                BSP_BATTERYMON_TX_ACTIVE_PIN);
-  GPIO_PinModeSet(BSP_BATTERYMON_TX_ACTIVE_PORT,
-                  BSP_BATTERYMON_TX_ACTIVE_PIN,
-                  gpioModePushPull,
-                  0);  
-
   #else //series 1
   uint32_t flags;
   
@@ -284,40 +271,20 @@ void sl_battery_monitor_init(void)
   ADC_IntClear(ADC0, flags);
   ADC_Start(ADC0, adcStartSingle);
 
-  CMU_ClockEnable(cmuClock_PRS, true);
-
-  // Initialize the PRS system to drive a GPIO high when the preamble is in the
-  // air, effectively becoming a TX_ACT pin
-  PRS_SourceSignalSet(BSP_BATTERYMON_TX_ACTIVE_CHANNEL,
-                      PRS_SOURCE,
-                      PRS_SIGNAL,
-                      PRS_EDGE);
-
-  // Enable the PRS channel and set the pin routing per the settings in the
-  // board configuration header
-  BUS_RegMaskedSet(&PRS->ROUTEPEN, (1 << BSP_BATTERYMON_TX_ACTIVE_CHANNEL));
-  PRS->PRS_ROUTE_LOC = PRS->PRS_ROUTE_LOC & ~PRS_PIN_MASK;
-  PRS->PRS_ROUTE_LOC = PRS->PRS_ROUTE_LOC
-                       | (BSP_BATTERYMON_TX_ACTIVE_LOC
-                          << PRS_PIN_SHIFT);
-  GPIO_PinModeSet(BSP_BATTERYMON_TX_ACTIVE_PORT,
-                  BSP_BATTERYMON_TX_ACTIVE_PIN,
-                  gpioModePushPull,
-                  0);
-
   #endif
 
+  _activate_prs();
   // Set up the generic interrupt controller to activate the readADC event when
   // TX_ACTIVE goes high
-  int int_id = GPIOINT_CallbackRegisterExt(
+  interrupt_id = GPIOINT_CallbackRegisterExt(
       BSP_BATTERYMON_TX_ACTIVE_PIN,
       tx_channel_irq_handler,
       NULL);
-  if (int_id != INTERRUPT_UNAVAILABLE) {
+  if (interrupt_id != INTERRUPT_UNAVAILABLE) {
     GPIO_ExtIntConfig(
         BSP_BATTERYMON_TX_ACTIVE_PORT,
         BSP_BATTERYMON_TX_ACTIVE_PIN,
-        int_id,
+        interrupt_id,
         true,
         false,
         true);
@@ -339,6 +306,23 @@ void sl_battery_monitor_init(void)
 
 uint16_t sl_battery_monitor_get_voltage_in_mv(void)
 {
+  if (interrupt_id == INTERRUPT_UNAVAILABLE) {
+    // assume the initialization was not complete, so bail out
+    return 0;
+  }
+
+  NVIC_DisableIRQ(interrupt_id);
+  _deactivate_prs();
+  GPIO_PinOutSet(BSP_BATTERYMON_TX_ACTIVE_PORT, BSP_BATTERYMON_TX_ACTIVE_PIN);
+
+  lastReportedVoltageMilliV = halBatteryMonitorReadVoltage();
+  // filter the voltage to prevent spikes from overly influencing data
+  lastReportedVoltageMilliV = filterVoltageSample(lastReportedVoltageMilliV);
+
+  GPIO_PinOutClear(BSP_BATTERYMON_TX_ACTIVE_PORT, BSP_BATTERYMON_TX_ACTIVE_PIN);
+  _activate_prs();
+  NVIC_EnableIRQ(interrupt_id);
+
   return lastReportedVoltageMilliV;
 }
 
@@ -370,7 +354,6 @@ static uint32_t halBatteryMonitorReadVoltage()
   IADC_Result_t sample = IADC_readSingleResult(IADC0);
 
   milliV = (uint32_t)(milliVPerBit * sample.data);
-  emberAfAppPrintln("IADC sample: %d, milliV=%lu", sample.data, milliV);
 
   #else //series 1
 
@@ -400,7 +383,6 @@ static uint32_t halBatteryMonitorReadVoltage()
   vData = ADC_DataSingleGet(ADC0); 
 
   milliV = (uint32_t)(milliVPerBit * vData);
-  emberAfAppPrintln("ADC sample: %d, milliV=%lu", vData, milliV);
   #endif
 
   return milliV;
@@ -468,7 +450,61 @@ static void handle_em0_transition(sl_power_manager_em_t from,
   if (enter) {
     IADC0->EN_CLR = IADC_EN_EN;
   } else {
-      IADC0->EN_SET = IADC_EN_EN;
+    IADC0->EN_SET = IADC_EN_EN;
   }
 }
 #endif
+
+/**
+ * @brief Activate the PRS signal to drive the TX_ACTIVE pin high
+ */
+static void _activate_prs(void)
+{
+#if defined(_SILICON_LABS_32B_SERIES_2)
+  CMU_ClockEnable(cmuClock_PRS, true);
+
+  // Initialize the PRS system to drive a GPIO high when the preamble is in the
+  // air, effectively becoming a TX_ACT pin
+  PRS_SourceAsyncSignalSet(BSP_BATTERYMON_TX_ACTIVE_CHANNEL,
+                           PRS_SOURCE,
+                           PRS_SIGNAL);
+  PRS_PinOutput(BSP_BATTERYMON_TX_ACTIVE_CHANNEL, 
+                prsTypeAsync, 
+                BSP_BATTERYMON_TX_ACTIVE_PORT, 
+                BSP_BATTERYMON_TX_ACTIVE_PIN);
+  GPIO_PinModeSet(BSP_BATTERYMON_TX_ACTIVE_PORT,
+                  BSP_BATTERYMON_TX_ACTIVE_PIN,
+                  gpioModePushPull,
+                  0);  
+#else //series 1
+  CMU_ClockEnable(cmuClock_PRS, true);
+
+  // Initialize the PRS system to drive a GPIO high when the preamble is in the
+  // air, effectively becoming a TX_ACT pin
+  PRS_SourceSignalSet(BSP_BATTERYMON_TX_ACTIVE_CHANNEL,
+                      PRS_SOURCE,
+                      PRS_SIGNAL,
+                      PRS_EDGE);
+
+  // Enable the PRS channel and set the pin routing per the settings in the
+  // board configuration header
+  PRS_GpioOutputLocationSet(BSP_BATTERYMON_TX_ACTIVE_CHANNEL,
+                            BSP_BATTERYMON_TX_ACTIVE_LOC);
+  GPIO_PinModeSet(BSP_BATTERYMON_TX_ACTIVE_PORT,
+                  BSP_BATTERYMON_TX_ACTIVE_PIN,
+                  gpioModePushPull,
+                  0);
+#endif
+}
+
+/**
+ * @brief Deactivate the PRS signal, when need to read the battery voltage ondemand`
+ */
+static void _deactivate_prs(void)
+{
+#if defined(_SILICON_LABS_32B_SERIES_2)
+  GPIO->PRSROUTE[0].ROUTEEN &= ~(0x1 << (BSP_BATTERYMON_TX_ACTIVE_CHANNEL + _GPIO_PRS_ROUTEEN_ASYNCH0PEN_SHIFT));
+#else //series 1
+  PRS->ROUTEPEN &= ~(1 << BSP_BATTERYMON_TX_ACTIVE_CHANNEL); 
+#endif
+}
