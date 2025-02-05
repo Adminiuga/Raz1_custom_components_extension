@@ -162,8 +162,11 @@ error("please define the correct macros here!")
 
 // ------------------------------------------------------------------------------
 // Forward Declaration
+static void _activate_prs(void);
+static void _deactivate_prs(void);
 static uint16_t filterVoltageSample(uint16_t sample);
 static void tx_channel_irq_handler(uint8_t int_id, void *ctx);
+static uint32_t halBatteryMonitorReadVoltage();
 #if defined(_SILICON_LABS_32B_SERIES_2)
 static void handle_em0_transition(sl_power_manager_em_t from,
                                   sl_power_manager_em_t to);
@@ -192,11 +195,6 @@ static uint16_t lastReportedVoltageMilliV;
 #if defined(_SILICON_LABS_32B_SERIES_2)
 static sl_power_manager_em_transition_event_handle_t em0_transition_event;
 #endif // _SILICON_LABS32B_SERIES_2
-
-// ------------------------------------------------------------------------------
-// forward declarations
-static void _activate_prs(void);
-static void _deactivate_prs(void);
 
 // ------------------------------------------------------------------------------
 // Implementation of public functions
@@ -286,7 +284,7 @@ void sl_battery_monitor_init(void)
     GPIO_ExtIntConfig(
         BSP_BATTERYMON_TX_ACTIVE_PORT,
         BSP_BATTERYMON_TX_ACTIVE_PIN,
-        int_id,
+        interrupt_id,
         true,
         false,
         true);
@@ -308,6 +306,23 @@ void sl_battery_monitor_init(void)
 
 uint16_t sl_battery_monitor_get_voltage_in_mv(void)
 {
+  if (interrupt_id == INTERRUPT_UNAVAILABLE) {
+    // assume the initialization was not complete, so bail out
+    return 0;
+  }
+
+  NVIC_DisableIRQ(interrupt_id);
+  _deactivate_prs();
+  GPIO_PinOutSet(BSP_BATTERYMON_TX_ACTIVE_PORT, BSP_BATTERYMON_TX_ACTIVE_PIN);
+
+  lastReportedVoltageMilliV = halBatteryMonitorReadVoltage();
+  // filter the voltage to prevent spikes from overly influencing data
+  lastReportedVoltageMilliV = filterVoltageSample(lastReportedVoltageMilliV);
+
+  GPIO_PinOutClear(BSP_BATTERYMON_TX_ACTIVE_PORT, BSP_BATTERYMON_TX_ACTIVE_PIN);
+  _activate_prs();
+  NVIC_EnableIRQ(interrupt_id);
+
   return lastReportedVoltageMilliV;
 }
 
