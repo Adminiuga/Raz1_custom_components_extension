@@ -488,8 +488,8 @@ static void _activate_prs(void)
 
   // Enable the PRS channel and set the pin routing per the settings in the
   // board configuration header
-  PRS_GpioOutputLocationSet(BSP_BATTERYMON_TX_ACTIVE_CHANNEL,
-                            BSP_BATTERYMON_TX_ACTIVE_LOC);
+  PRS_GpioOutputLocation(BSP_BATTERYMON_TX_ACTIVE_CHANNEL,
+                         BSP_BATTERYMON_TX_ACTIVE_LOC);
   GPIO_PinModeSet(BSP_BATTERYMON_TX_ACTIVE_PORT,
                   BSP_BATTERYMON_TX_ACTIVE_PIN,
                   gpioModePushPull,
