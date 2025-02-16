@@ -2,7 +2,7 @@ id: raz1_custom_components
 label: Raz-1 Custom components and drivers
 description: >
   My custom components and drivers for Gecko SDK Suite
-version: 0.0.3
+version: 0.0.4
 sdk:
   id: gecko_sdk
   version: 4.4.5
