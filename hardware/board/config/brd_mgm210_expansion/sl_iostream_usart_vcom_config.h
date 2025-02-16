@@ -92,7 +92,7 @@
 #define SL_IOSTREAM_USART_VCOM_TX_PIN            0
 
 // USART0 RX on PA1
-#define SL_IOSTREAM_USART_VCOM_RX_PORT           gpioPortA
+#define SL_IOSTREAM_USART_VCOM_RX_PORT           gpioPortC
 #define SL_IOSTREAM_USART_VCOM_RX_PIN            4
 
 // [USART_SL_IOSTREAM_USART_VCOM]$
